@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -6,24 +6,33 @@ import {
   SafeAreaView,
   ActivityIndicator,
   Animated,
+  Alert,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
+import { analyzeTest } from '../services/analyzeTest';
 import { Colors } from '../constants/colors';
+
+const STATUS_STEPS = [
+  'Uploading photo...',
+  'Analyzing results...',
+  'Almost done...',
+];
 
 export default function LoadingScreen() {
   const router = useRouter();
+  const { imageUri } = useLocalSearchParams<{ imageUri: string }>();
+
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
+  const [statusIndex, setStatusIndex] = useState(0);
 
   useEffect(() => {
-    // Fade in on mount
     Animated.timing(fadeAnim, {
       toValue: 1,
       duration: 400,
       useNativeDriver: true,
     }).start();
 
-    // Soft pulse on the scan icon
     Animated.loop(
       Animated.sequence([
         Animated.timing(pulseAnim, {
@@ -39,42 +48,54 @@ export default function LoadingScreen() {
       ])
     ).start();
 
-    // Mock AI processing delay → navigate to result
-    const timer = setTimeout(() => {
-      router.replace('/result');
-    }, 3200);
+    // Cycle status label text every 3 seconds
+    const labelTimer = setInterval(() => {
+      setStatusIndex((i) => Math.min(i + 1, STATUS_STEPS.length - 1));
+    }, 3000);
 
-    return () => clearTimeout(timer);
+    const run = async () => {
+      try {
+        if (!imageUri) throw new Error('No image provided');
+        const results = await analyzeTest(imageUri);
+        clearInterval(labelTimer);
+        router.replace({
+          pathname: '/result',
+          params: { results: JSON.stringify(results) },
+        });
+      } catch {
+        clearInterval(labelTimer);
+        Alert.alert(
+          'Could not read test',
+          'Something went wrong reading your test. Please try again.',
+          [{ text: 'OK', onPress: () => router.replace('/') }]
+        );
+      }
+    };
+
+    run();
+
+    return () => clearInterval(labelTimer);
   }, []);
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
 
-        {/* Pulsing icon */}
-        <Animated.View
-          style={[
-            styles.iconWrapper,
-            { transform: [{ scale: pulseAnim }] },
-          ]}
-        >
+        <Animated.View style={[styles.iconWrapper, { transform: [{ scale: pulseAnim }] }]}>
           <Text style={styles.scanEmoji}>🔍</Text>
         </Animated.View>
 
-        {/* Spinner */}
         <ActivityIndicator
           size="large"
           color={Colors.primaryDark}
           style={styles.spinner}
         />
 
-        {/* Text */}
         <Text style={styles.mainText}>Reading your test...</Text>
         <Text style={styles.subText}>Please wait a moment</Text>
 
-        {/* Status pill */}
         <View style={styles.statusPill}>
-          <Text style={styles.statusPillText}>AI is analyzing your results</Text>
+          <Text style={styles.statusPillText}>{STATUS_STEPS[statusIndex]}</Text>
         </View>
 
       </Animated.View>
