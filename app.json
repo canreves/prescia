@@ -1,0 +1,34 @@
+{
+  "expo": {
+    "name": "prescia",
+    "slug": "prescia",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "scheme": "prescia",
+    "newArchEnabled": true,
+    "plugins": [
+      "expo-router",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "prescia needs access to your photos to scan test results.",
+          "cameraPermission": "prescia needs your camera to scan medical tests and prescriptions."
+        }
+      ]
+    ],
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.prescia.app"
+    },
+    "android": {
+      "package": "com.prescia.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#EBF7EC"
+      }
+    },
+    "web": {
+      "bundler": "metro"
+    }
+  }
+}
