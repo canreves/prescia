@@ -50,7 +50,10 @@ export default function HomeScreen() {
       quality: 0.85,
     });
     if (!result.canceled) {
-      router.push('/loading');
+      router.push({
+        pathname: '/loading',
+        params: { imageUri: result.assets[0].uri },
+      });
     }
   };
 
