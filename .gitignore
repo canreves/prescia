@@ -1,0 +1,13 @@
+node_modules/
+.expo/
+dist/
+web-build/
+
+# Env files — never commit secrets
+.env
+.env.example
+.env.local
+.env*.local
+
+# OS
+.DS_Store
