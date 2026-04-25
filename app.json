@@ -15,7 +15,8 @@
           "photosPermission": "prescia needs access to your photos to scan test results.",
           "cameraPermission": "prescia needs your camera to scan medical tests and prescriptions."
         }
-      ]
+      ],
+      "expo-asset"
     ],
     "ios": {
       "supportsTablet": false,
