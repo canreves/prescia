@@ -1,8 +1,8 @@
-import Anthropic from '@anthropic-ai/sdk';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import * as FileSystem from 'expo-file-system';
 import type { TestResult } from '../types';
 
-const SYSTEM_PROMPT = `You are a medical test result interpreter for a general audience.
+const SYSTEM_INSTRUCTION = `You are a medical test result interpreter for a general audience.
 Analyze the provided medical test or prescription image and return structured results.
 Always respond with ONLY a raw JSON array — no markdown fences, no prose, just the JSON array.
 If the image is not a medical document, return an empty array: []`;
@@ -23,48 +23,31 @@ Return ONLY a JSON array. Each item must have exactly these fields:
 If the image is not a medical test or prescription, return: []`;
 
 export async function analyzeTest(imageUri: string): Promise<TestResult[]> {
-  // Read image as base64
   const base64 = await FileSystem.readAsStringAsync(imageUri, {
     encoding: FileSystem.EncodingType.Base64,
   });
 
-  const client = new Anthropic({
-    apiKey: process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY,
-    dangerouslyAllowBrowser: true,
+  const genAI = new GoogleGenerativeAI(process.env.EXPO_PUBLIC_GEMINI_API_KEY ?? '');
+
+  const model = genAI.getGenerativeModel({
+    model: 'gemini-1.5-flash',
+    systemInstruction: SYSTEM_INSTRUCTION,
   });
 
-  const response = await client.messages.create({
-    model: 'claude-sonnet-4-6',
-    max_tokens: 1024,
-    system: SYSTEM_PROMPT,
-    messages: [
-      {
-        role: 'user',
-        content: [
-          {
-            type: 'image',
-            source: {
-              type: 'base64',
-              media_type: 'image/jpeg',
-              data: base64,
-            },
-          },
-          {
-            type: 'text',
-            text: USER_PROMPT,
-          },
-        ],
+  const result = await model.generateContent([
+    {
+      inlineData: {
+        mimeType: 'image/jpeg',
+        data: base64,
       },
-    ],
-  });
+    },
+    { text: USER_PROMPT },
+  ]);
 
-  const raw = response.content[0];
-  if (raw.type !== 'text') {
-    throw new Error('Unexpected response type from API');
-  }
+  const raw = result.response.text().trim();
 
-  // Strip any accidental markdown fences Claude might add
-  const cleaned = raw.text.trim().replace(/^```json\s*/i, '').replace(/```$/i, '').trim();
+  // Strip any accidental markdown fences the model might add
+  const cleaned = raw.replace(/^```json\s*/i, '').replace(/```$/i, '').trim();
   const parsed: TestResult[] = JSON.parse(cleaned);
 
   if (!Array.isArray(parsed)) {
