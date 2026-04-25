@@ -7,67 +7,9 @@ import {
   ScrollView,
   TouchableOpacity,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Colors } from '../constants/colors';
-
-// ── Types ────────────────────────────────────────────────────────────────────
-
-type ResultStatus = 'normal' | 'high' | 'low';
-
-interface TestResult {
-  id: string;
-  emoji: string;
-  name: string;
-  value: string;
-  normalRange: string;
-  status: ResultStatus;
-  explanation: string;
-}
-
-// ── Mock data (replace with real AI response) ────────────────────────────────
-
-const MOCK_RESULTS: TestResult[] = [
-  {
-    id: '1',
-    emoji: '🩸',
-    name: 'Blood Sugar (Glucose)',
-    value: '105 mg/dL',
-    normalRange: '70 – 100 mg/dL',
-    status: 'high',
-    explanation:
-      'Your blood sugar is slightly above normal. Try to reduce sugary foods and drinks, and walk for 20 minutes after meals.',
-  },
-  {
-    id: '2',
-    emoji: '💚',
-    name: 'Cholesterol (Total)',
-    value: '190 mg/dL',
-    normalRange: 'Below 200 mg/dL',
-    status: 'normal',
-    explanation:
-      'Great news! Your cholesterol is in the healthy range. Keep up your current diet and stay active.',
-  },
-  {
-    id: '3',
-    emoji: '🫀',
-    name: 'Hemoglobin',
-    value: '11.8 g/dL',
-    normalRange: '12.0 – 17.5 g/dL',
-    status: 'low',
-    explanation:
-      'Your hemoglobin is slightly low. This can cause tiredness or dizziness. Eat more iron-rich foods like spinach, lentils, and red meat — and talk to your doctor.',
-  },
-  {
-    id: '4',
-    emoji: '💪',
-    name: 'Blood Pressure',
-    value: '118 / 76 mmHg',
-    normalRange: 'Below 120 / 80 mmHg',
-    status: 'normal',
-    explanation:
-      'Excellent! Your blood pressure is perfectly normal. Keep up the good habits.',
-  },
-];
+import type { TestResult, ResultStatus } from '../types';
 
 // ── Status config ────────────────────────────────────────────────────────────
 
@@ -98,12 +40,11 @@ const STATUS_CONFIG: Record<
 // ── Components ───────────────────────────────────────────────────────────────
 
 function ResultCard({ item }: { item: TestResult }) {
-  const cfg = STATUS_CONFIG[item.status];
+  const cfg = STATUS_CONFIG[item.status] ?? STATUS_CONFIG.normal;
 
   return (
     <View style={[styles.card, { borderLeftColor: cfg.borderColor }]}>
 
-      {/* Card header: emoji + name + status badge */}
       <View style={styles.cardHeader}>
         <Text style={styles.cardEmoji}>{item.emoji}</Text>
         <View style={styles.cardTitleBlock}>
@@ -116,7 +57,6 @@ function ResultCard({ item }: { item: TestResult }) {
         </View>
       </View>
 
-      {/* Values row */}
       <View style={styles.valuesRow}>
         <View style={styles.valueCell}>
           <Text style={styles.valueCellLabel}>YOUR RESULT</Text>
@@ -131,7 +71,6 @@ function ResultCard({ item }: { item: TestResult }) {
         </View>
       </View>
 
-      {/* Plain-language explanation */}
       <View style={styles.explanationBox}>
         <Text style={styles.explanationText}>{item.explanation}</Text>
       </View>
@@ -140,42 +79,73 @@ function ResultCard({ item }: { item: TestResult }) {
   );
 }
 
+function ErrorCard({ onRetry }: { onRetry: () => void }) {
+  return (
+    <View style={[styles.card, { borderLeftColor: Colors.statusHighBorder }]}>
+      <Text style={styles.errorEmoji}>⚠️</Text>
+      <Text style={styles.errorTitle}>Could not read this test</Text>
+      <Text style={styles.errorBody}>
+        The photo may be blurry or the document may not be a medical test.
+        Please try again with a clearer photo.
+      </Text>
+      <TouchableOpacity style={styles.retryButton} onPress={onRetry} activeOpacity={0.8}>
+        <Text style={styles.retryButtonText}>Try Again</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
 // ── Screen ───────────────────────────────────────────────────────────────────
 
 export default function ResultScreen() {
   const router = useRouter();
+  const { results: rawResults } = useLocalSearchParams<{ results: string }>();
+
+  let results: TestResult[] = [];
+  let parseError = false;
+
+  try {
+    if (rawResults) {
+      results = JSON.parse(rawResults) as TestResult[];
+    } else {
+      parseError = true;
+    }
+  } catch {
+    parseError = true;
+  }
+
+  const hasResults = !parseError && results.length > 0;
 
   return (
     <SafeAreaView style={styles.safeArea}>
 
-      {/* Fixed header */}
       <View style={styles.pageHeader}>
         <Text style={styles.pageTitle}>Your Results</Text>
         <Text style={styles.pageSubtitle}>Explained in simple words</Text>
       </View>
 
-      {/* Scrollable cards */}
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {MOCK_RESULTS.map((item) => (
-          <ResultCard key={item.id} item={item} />
-        ))}
+        {hasResults ? (
+          results.map((item) => <ResultCard key={item.id} item={item} />)
+        ) : (
+          <ErrorCard onRetry={() => router.replace('/')} />
+        )}
 
-        {/* Medical disclaimer */}
-        <View style={styles.disclaimer}>
-          <Text style={styles.disclaimerText}>
-            ⚠️  This is for information only.{'\n'}Always consult your doctor for medical advice.
-          </Text>
-        </View>
+        {hasResults && (
+          <View style={styles.disclaimer}>
+            <Text style={styles.disclaimerText}>
+              ⚠️  This is for information only.{'\n'}Always consult your doctor for medical advice.
+            </Text>
+          </View>
+        )}
 
-        {/* Spacer so last card isn't hidden behind the sticky button */}
         <View style={{ height: 120 }} />
       </ScrollView>
 
-      {/* Sticky "Scan Another" button */}
       <View style={styles.stickyBottom}>
         <TouchableOpacity
           style={styles.scanButton}
@@ -197,8 +167,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
-
-  // Page header
   pageHeader: {
     paddingHorizontal: 24,
     paddingTop: 24,
@@ -215,15 +183,13 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: Colors.textSecondary,
   },
-
-  // Scroll
   scroll: { flex: 1 },
   scrollContent: {
     paddingHorizontal: 20,
     paddingTop: 8,
   },
 
-  // ── Card ──────────────────────────────────────────────
+  // ── Result card ──────────────────────────────────────────
   card: {
     backgroundColor: Colors.backgroundCard,
     borderRadius: 20,
@@ -266,8 +232,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '800',
   },
-
-  // Values row
   valuesRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -299,8 +263,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.border,
     marginHorizontal: 8,
   },
-
-  // Explanation
   explanationBox: {
     backgroundColor: Colors.primaryLight,
     borderRadius: 14,
@@ -313,7 +275,39 @@ const styles = StyleSheet.create({
     lineHeight: 27,
   },
 
-  // Disclaimer
+  // ── Error card ────────────────────────────────────────────
+  errorEmoji: {
+    fontSize: 48,
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  errorTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: Colors.text,
+    textAlign: 'center',
+    marginBottom: 10,
+  },
+  errorBody: {
+    fontSize: 18,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 26,
+    marginBottom: 20,
+  },
+  retryButton: {
+    backgroundColor: Colors.primary,
+    paddingVertical: 16,
+    borderRadius: 14,
+    alignItems: 'center',
+  },
+  retryButtonText: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: Colors.white,
+  },
+
+  // ── Disclaimer ────────────────────────────────────────────
   disclaimer: {
     backgroundColor: '#FFF9C4',
     borderRadius: 14,
@@ -328,7 +322,7 @@ const styles = StyleSheet.create({
     lineHeight: 24,
   },
 
-  // Sticky bottom button
+  // ── Sticky bottom ─────────────────────────────────────────
   stickyBottom: {
     position: 'absolute',
     bottom: 0,
